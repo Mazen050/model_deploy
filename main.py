@@ -2,9 +2,18 @@ from fastapi import FastAPI
 import pandas as pd
 import joblib
 import xgboost as xgb
+from fastapi.middleware.cors import CORSMiddleware
 
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or ["http://localhost:3000"] for React/Vercel
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 scaler = joblib.load("scaler.pkl")
 # model = joblib.load("XGB_model_final.jso")
