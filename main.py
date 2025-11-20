@@ -1,18 +1,32 @@
 from fastapi import FastAPI
 import pandas as pd
 import joblib
+import xgboost as xgb
+
 
 app = FastAPI()
 
 scaler = joblib.load("scaler.pkl")
-model = joblib.load("XGB_model_final.pkl")
+# model = joblib.load("XGB_model_final.jso")
+booster = xgb.Booster()
+booster.load_model("XGB_model_final.json")
 
-def predict(row_dict):
-    x = pd.DataFrame([row_dict])
+# def predict(row_dict):
+#     x = pd.DataFrame([row_dict])
     
+#     x_scaled = scaler.transform(x)
+
+#     prob = model.predict_proba(x_scaled)[0][1]
+#     pred = int(prob >= 0.5)
+
+#     return pred, prob
+
+def predict_with_proba(row_dict):
+    x = pd.DataFrame([row_dict])
     x_scaled = scaler.transform(x)
 
-    prob = model.predict_proba(x_scaled)[0][1]
+    dmatrix = xgb.DMatrix(x_scaled)
+    prob = float(booster.predict(dmatrix)[0])
     pred = int(prob >= 0.5)
 
     return pred, prob
@@ -21,10 +35,10 @@ def predict(row_dict):
 async def endpoint(form_data: dict):
     print(form_data)
 
-    x = predict(form_data)
+    x = predict_with_proba(form_data)
     print(x)
 
-    return {"prediction": x[0], "probability": round(x[1].item()*100, 2), "cluster": None}
+    return {"prediction": x[0], "probability": round(x[1]*100, 2), "cluster": None}
 
 
 @app.post("/cluster")
