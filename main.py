@@ -58,11 +58,13 @@ async def endpoint(form_data: dict):
     print(form_data)
 
     attrition = predict(form_data)
+    cluster = None
+    if attrition[0] == 1:
+        clusterData = form_data.copy()
+        clusterData.pop("Department_Human Resources")
+        clusterData.pop("Department_Research & Development")
+        clusterData.pop("Department_Sales")
+        cluster = predictCluster(clusterData)
+        cluster = int(cluster)
 
-    clusterData = form_data.copy()
-    clusterData.pop("Department_Human Resources")
-    clusterData.pop("Department_Research & Development")
-    clusterData.pop("Department_Sales")
-    cluster = predictCluster(clusterData)
-
-    return {"prediction": attrition[0], "probability": round(attrition[1]*100, 2), "cluster": int(cluster)}
+    return {"prediction": attrition[0], "probability": round(attrition[1]*100, 2), "cluster": cluster}
