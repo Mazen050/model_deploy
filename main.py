@@ -9,28 +9,38 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # or ["http://localhost:3000"] for React/Vercel
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 scaler = joblib.load("scaler.pkl")
-# model = joblib.load("XGB_model_final.jso")
 booster = xgb.Booster()
 booster.load_model("XGB_model_final.json")
 
-# def predict(row_dict):
-#     x = pd.DataFrame([row_dict])
+clusterScaler = joblib.load("scaler(clus).pkl")
+clusterModel = joblib.load("kmeans_model.pkl")
+pca = joblib.load("pca.pkl")
+
+
+
+
+def predictCluster(row_dict):
+    x = pd.DataFrame([row_dict])
+
+    # Scale
+    x_scaled = clusterScaler.transform(x)
+
+    x_scaled_PCA = pca.transform(x_scaled)
+
+    pred = clusterModel.predict(x_scaled_PCA)
     
-#     x_scaled = scaler.transform(x)
+    return pred
 
-#     prob = model.predict_proba(x_scaled)[0][1]
-#     pred = int(prob >= 0.5)
 
-#     return pred, prob
 
-def predict_with_proba(row_dict):
+def predict(row_dict):
     x = pd.DataFrame([row_dict])
     x_scaled = scaler.transform(x)
 
@@ -40,19 +50,19 @@ def predict_with_proba(row_dict):
 
     return pred, prob
 
+
+
+
 @app.post("/predict")
 async def endpoint(form_data: dict):
     print(form_data)
 
-    x = predict_with_proba(form_data)
-    print(x)
+    attrition = predict(form_data)
 
-    return {"prediction": x[0], "probability": round(x[1]*100, 2), "cluster": None}
+    clusterData = form_data.copy()
+    clusterData.pop("Department_Human Resources")
+    clusterData.pop("Department_Research & Development")
+    clusterData.pop("Department_Sales")
+    cluster = predictCluster(clusterData)
 
-
-@app.post("/cluster")
-async def cluster(form_data: dict):
-    print(form_data)
-    # Here you would add your clustering logic using the parameters
-    # For demonstration, we will just return the received parameters
-    return {"received_params": form_data}
+    return {"prediction": attrition[0], "probability": round(attrition[1]*100, 2), "cluster": int(cluster)}
