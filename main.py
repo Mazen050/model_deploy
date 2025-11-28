@@ -42,18 +42,49 @@ def predictCluster(row_dict):
     return pred
 
 
-
-def get_top3_features(employee_data: pd.DataFrame):
-
+def get_top3_features(employee_data: pd.DataFrame,attrition: int):
+    # Compute SHAP values
     shap_vals = explainer.shap_values(employee_data)[0]
 
-    df = pd.DataFrame({
-        "feature": employee_data.columns,
-        "shap_value": shap_vals,
-        "abs_shap": np.abs(shap_vals)
-    }).sort_values(by="shap_value", ascending=False)
+    if attrition == 1:
+        df = pd.DataFrame({
+            "feature": employee_data.columns,
+            "shap_value": shap_vals,
+            "abs_shap": np.abs(shap_vals)
+        }).sort_values(by="shap_value", ascending=False)
+    else:
+        df = pd.DataFrame({
+            "feature": employee_data.columns,
+            "shap_value": shap_vals,
+            "abs_shap": np.abs(shap_vals)
+        }).sort_values(by="shap_value", ascending=True)
 
-    return df.head(3)
+    print(df)
+
+    # Pick top 3
+    top3 = df.head(3)
+
+    # Convert into readable explanation
+    readable_reasons = []
+    for _, row in top3.iterrows():
+        feature = row["feature"]
+        value = employee_data.iloc[0][feature]
+        impact = row["shap_value"]
+
+        if impact > 0:
+            direction = "increases"
+        else:
+            direction = "decreases"
+
+        readable_reasons.append(
+            f"{feature.replace('_',' ').title()} {direction} chance of leaving."
+        )
+
+    return {
+        "top3_table":  top3.to_dict(orient="records"),
+        "reasons": readable_reasons
+    }
+
 
 
 
@@ -75,7 +106,7 @@ async def endpoint(form_data: dict):
 
     attrition = predict(form_data)
 
-    topFeats = get_top3_features(pd.DataFrame([form_data]))
+    topFeats = get_top3_features(pd.DataFrame([form_data]), attrition[0])
 
     cluster = None
     if attrition[0] == 1:
@@ -90,5 +121,5 @@ async def endpoint(form_data: dict):
             "prediction": attrition[0],
             "probability": round(attrition[1]*100, 2),
             "cluster": cluster,
-            "top_features": topFeats.to_dict(orient="records")
+            "top_features": dict(topFeats)
             }
