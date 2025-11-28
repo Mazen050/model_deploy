@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+import shap
+import numpy as np
 import pandas as pd
 import joblib
 import xgboost as xgb
@@ -15,9 +17,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 scaler = joblib.load("scaler.pkl")
 booster = xgb.Booster()
 booster.load_model("XGB_model_final.json")
+
+explainer = shap.TreeExplainer(booster)
 
 clusterScaler = joblib.load("scaler(clus).pkl")
 clusterModel = joblib.load("kmeans_model.pkl")
@@ -25,11 +30,9 @@ pca = joblib.load("pca.pkl")
 
 
 
-
 def predictCluster(row_dict):
     x = pd.DataFrame([row_dict])
 
-    # Scale
     x_scaled = clusterScaler.transform(x)
 
     x_scaled_PCA = pca.transform(x_scaled)
@@ -37,6 +40,20 @@ def predictCluster(row_dict):
     pred = clusterModel.predict(x_scaled_PCA)
     
     return pred
+
+
+
+def get_top3_features(employee_data: pd.DataFrame):
+
+    shap_vals = explainer.shap_values(employee_data)[0]
+
+    df = pd.DataFrame({
+        "feature": employee_data.columns,
+        "shap_value": shap_vals,
+        "abs_shap": np.abs(shap_vals)
+    }).sort_values(by="shap_value", ascending=False)
+
+    return df.head(3)
 
 
 
@@ -52,12 +69,14 @@ def predict(row_dict):
 
 
 
-
 @app.post("/predict")
 async def endpoint(form_data: dict):
     print(form_data)
 
     attrition = predict(form_data)
+
+    topFeats = get_top3_features(pd.DataFrame([form_data]))
+
     cluster = None
     if attrition[0] == 1:
         clusterData = form_data.copy()
@@ -67,4 +86,9 @@ async def endpoint(form_data: dict):
         cluster = predictCluster(clusterData)
         cluster = int(cluster)
 
-    return {"prediction": attrition[0], "probability": round(attrition[1]*100, 2), "cluster": cluster}
+    return {
+            "prediction": attrition[0],
+            "probability": round(attrition[1]*100, 2),
+            "cluster": cluster,
+            "top_features": topFeats.to_dict(orient="records")
+            }
