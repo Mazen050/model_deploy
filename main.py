@@ -59,7 +59,6 @@ def get_top3_features(employee_data: pd.DataFrame,attrition: int):
             "abs_shap": np.abs(shap_vals)
         }).sort_values(by="shap_value", ascending=True)
 
-    print(df)
 
     # Pick top 3
     top3 = df.head(3)
